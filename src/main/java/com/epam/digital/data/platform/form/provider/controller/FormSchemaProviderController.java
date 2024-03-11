@@ -17,10 +17,13 @@
 package com.epam.digital.data.platform.form.provider.controller;
 
 import com.epam.digital.data.platform.form.provider.service.impl.FormSchemaProviderServiceImpl;
+import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,7 +34,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/forms")
+@RequestMapping("/api")
 public class FormSchemaProviderController {
 
   private final FormSchemaProviderServiceImpl formSchemaProviderServiceImpl;
@@ -40,29 +43,38 @@ public class FormSchemaProviderController {
     this.formSchemaProviderServiceImpl = formSchemaProviderServiceImpl;
   }
 
-  @PostMapping
+  @PostMapping("/forms")
   public ResponseEntity<Void> saveForm(@RequestBody String formData) {
     formSchemaProviderServiceImpl.saveForm(formData);
     return ResponseEntity.status(HttpStatus.CREATED).build();
   }
 
-  @GetMapping("/{key}")
+  @GetMapping("/forms/{key}")
   public ResponseEntity<JSONObject> getForm(@PathVariable("key") String key) {
     return ResponseEntity.ok()
         .contentType(MediaType.APPLICATION_JSON)
         .body(formSchemaProviderServiceImpl.getFormByKey(key));
   }
 
-  @PutMapping("/{key}")
+  @PutMapping("/forms/{key}")
   public ResponseEntity<Void> updateForm(@PathVariable("key") String key,
       @RequestBody String formSchemaData) {
     formSchemaProviderServiceImpl.updateForm(key, formSchemaData);
     return ResponseEntity.status(HttpStatus.OK).build();
   }
 
-  @DeleteMapping("/{key}")
+  @DeleteMapping("/forms/{key}")
   public ResponseEntity<Void> deleteFormByKey(@PathVariable("key") String key) {
     formSchemaProviderServiceImpl.deleteFormByKey(key);
     return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+  }
+  
+  @GetMapping("/cards/visible")
+  public ResponseEntity<JSONArray> getVisibleCardsForCurrentUser() {
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    JSONArray visibleCards = formSchemaProviderServiceImpl.getVisibleCardsForCurrentUser(authentication);
+    return ResponseEntity.ok()
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(visibleCards);
   }
 }
