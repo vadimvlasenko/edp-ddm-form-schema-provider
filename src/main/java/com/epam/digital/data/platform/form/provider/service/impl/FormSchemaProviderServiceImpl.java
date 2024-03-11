@@ -26,10 +26,14 @@ import com.epam.digital.data.platform.form.provider.repository.FormRepository;
 import com.epam.digital.data.platform.form.provider.service.FormSchemaProviderService;
 import com.epam.digital.data.platform.form.provider.service.FormSchemaValidationService;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +42,9 @@ import lombok.extern.slf4j.Slf4j;
 import net.minidev.json.JSONObject;
 import net.minidev.json.JSONValue;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -45,6 +52,10 @@ import org.springframework.stereotype.Service;
 public class FormSchemaProviderServiceImpl implements FormSchemaProviderService {
 
   private static final String NAME = "name";
+  private static final String TYPE = "type";
+  private static final String CARD = "card";
+  private static final String SHOW_CARD_ON_UI = "showCardOnUi";
+  private static final String ROLES = "roles";
 
   private final FormSchemaValidationService formSchemaValidationService;
   private final FormRepository repository;
@@ -193,5 +204,32 @@ public class FormSchemaProviderServiceImpl implements FormSchemaProviderService 
     } catch (Exception e) {
       throw new FormDataRepositoryCommunicationException("Error during storage invocation", e);
     }
+  }
+
+  public List<FormSchema> getVisibleCardsForCurrentUser() {
+    List<FormSchema> cardFormSchemas = repository.findByTypeAndShowCardOnUi(CARD, true);
+
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    Set<String> currentUserRoles = authentication.getAuthorities().stream()
+        .map(GrantedAuthority::getAuthority)
+        .collect(Collectors.toSet());
+
+    return cardFormSchemas.stream()
+        .filter(formSchema -> {
+          try {
+            JsonNode formSchemaJson = objectMapper.readTree(formSchema.getFormData());
+            JsonNode rolesNode = formSchemaJson.get(ROLES);
+            if (rolesNode != null && rolesNode.isArray()) {
+              Set<String> formRoles = new HashSet<>();
+              rolesNode.forEach(role -> formRoles.add(role.asText()));
+              // Check if at least one role matches the current user roles
+              return !Collections.disjoint(formRoles, currentUserRoles);
+            }
+          } catch (Exception e) {
+            log.error("Error while parsing form JSON data", e);
+          }
+          return false;
+        })
+        .collect(Collectors.toList());
   }
 }
